@@ -1,0 +1,391 @@
+package STUART;
+
+import java.io.IOException;
+import java.io.PipedInputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.InputMismatchException;
+import java.util.Scanner;
+import java.util.Stack;
+
+import javax.swing.JOptionPane;
+
+import org.apache.commons.lang3.SerializationUtils;
+
+import STUART.ADT.*;
+
+public class StuartInferenceEngine
+{
+	KnowledgeBase knowledgeBase;
+	
+	public StuartInferenceEngine(KnowledgeBase kb)
+	{
+		//create a deep copy of the knowledge base object to operate on
+		knowledgeBase = SerializationUtils.clone(kb);
+	}
+	
+	
+	public Variable solveForwardChaining()
+	{		
+		
+		// obtain the target variable
+		Variable target = StuartIO.getVariable("Input a target variable", knowledgeBase.getConsequentVariablesArray());
+		
+		Rule rule;
+		
+		while(true)
+		{
+			int nRulesFired = 0;
+
+			for(int i = 0; i < knowledgeBase.getNumberOfRules(); i++)
+			{
+				//grab the current rule in a cyclic way
+				rule = knowledgeBase.getRule(i);
+				
+				//has the rule been evaluated? If it has then grab the next rule
+				if(rule.hasFired() == true)
+				{
+					continue;
+				}
+				else
+				{
+					//if the rule has not been fired, are its antecedents defined?
+					int  antDef = 0,antFalse = 0;
+					
+					//check that this rule can possible be evaluated given the current variables. If it cannot then do not query about the other variables
+					for(int k = 0; k < rule.getNumberOfAntecedents(); k++)
+					{
+						
+						//if the antecedent has a value that evaluates to false
+						if(rule.getAntecedent(k).getVariable().hasValue() && rule.getAntecedent(k).evaluate() == false)
+						{
+							antFalse++;
+						}
+					}
+					
+					//if it is an OR rule or it can be evaluated given its antecedents values. If the rule can possible be fired.
+					if(rule.getConnective() == Connectives.OR || antFalse == 0)
+					{
+					
+						for(int j = 0; j < rule.getNumberOfAntecedents(); j++)
+						{
+							//if the variable has not been defined
+							Variable var = rule.getAntecedent(j).getVariable();
+							if(!var.hasValue())
+							{
+								
+								//if the variable is flagged as a user input
+								if(var.isUserInput())
+								{
+									//query the user and set the current value
+									//rule.getAntecedent(j).getVariable().userSetCurrentValue(queryUser(rule.getAntecedent(j).getVariable()));
+									//rule.getAntecedent(j).getVariable().userSetCurrentValue(StuartIO.getValue("Input a value for "+rule.getAntecedent(j).getVariable().toString(), rule.getAntecedent(j).getVariable().getArrayOfPossibleValues()));
+									var = StuartIO.userSetVaraible(var);
+									antDef++;
+								}
+								else
+								{
+									//else jump to the next antecedent
+									continue;
+								}
+							}		
+							else
+							{
+								antDef++;
+							}
+							
+						}
+					}
+					//now all the variables have been defined
+					
+					//fire the rule if its antecedents are all defined and evaluate to true
+					if(antDef == rule.getNumberOfAntecedents() && rule.evaluate())
+					{
+						//System.out.println("firing rule "+rule.toString());
+						rule.fire();
+						nRulesFired++;
+					}
+				}
+			}
+			
+			//if no rules fired in the cycle then return true;
+			if(nRulesFired == 0)
+			{
+				return target;
+			}
+		}
+	}    
+	
+	
+	public Variable solveForwardChainingCertainty()
+	{		
+		//query the target
+		Variable target = StuartIO.getVariable("Input a target variable", knowledgeBase.getConsequentVariablesArray());
+
+		Rule rule;
+		
+		while(true)
+		{
+			int nRulesFired = 0;
+
+			for(int i = 0; i < knowledgeBase.getNumberOfRules(); i++)
+			{
+				//grab the current rule in a cyclic way
+				rule = knowledgeBase.getRule(i);
+				
+				//has the rule been evaluated? If it has then grab the next rule
+				if(rule.hasFired() == true)
+				{
+					continue;
+				}
+				else
+				{
+					//if the rule has not been fired, are its antecedents defined?
+					int  antDef = 0;
+					
+
+						for(int j = 0; j < rule.getNumberOfAntecedents(); j++)
+						{
+							//if the variable has not been defined
+							if(!rule.getAntecedent(j).getVariable().hasValue())
+							{
+								
+								//if the variable is flagged as a user input
+								if(rule.getAntecedent(j).getVariable().isUserInput())
+								{
+									//query the user and set the current value
+									//Value val = queryUser(rule.getAntecedent(j).getVariable());
+									Value val = StuartIO.getValue("Input a value for "+rule.getAntecedent(j).getVariable(), rule.getAntecedent(j).getVariable().getArrayOfPossibleValues());
+									//Double certainty = queryUserCertainty();
+									Double certainty = StuartIO.getCertainty("What is the certainty of this variable?");
+
+									rule.getAntecedent(j).getVariable().userSetCurrentValue(val);
+									rule.getAntecedent(j).getVariable().setCertaintyFactor(val, certainty);
+
+									antDef++;
+								}
+								else
+								{
+									//else jump to the next antecedent
+									continue;
+								}
+							}		
+							else
+							{
+								antDef++;
+							}
+							
+						
+					}
+					//now all the variables have been defined
+					
+					//fire the rule if its antecedents are all defined and evaluate to true
+					if(antDef == rule.getNumberOfAntecedents())
+					{
+						//System.out.println("firing rule "+rule.toString());
+						rule.fireCertainty();
+						nRulesFired++;
+					}
+				}
+			}
+			
+			//if no rules fired in the cycle then return true;
+			if(nRulesFired == 0)
+			{
+				return target;
+			}
+		}
+	}
+	
+	
+	public Variable solveBackwardChaining()
+	{
+		//TODO an empty stack exception is thrown for rule sets with multiple rules for a given consequent
+		// this seems unhelpful. 
+		
+		Variable var = StuartIO.getVariable("Input the target variable", knowledgeBase.getConsequentVariablesArray());
+		Value val = StuartIO.getValue("Input a value to search for", var.getArrayOfPossibleValues());
+		Consequent cons = new Consequent(var,val);
+		
+		Stack<Consequent> stack = new Stack<Consequent>();
+		//push the first consequent to the stack
+		stack.push(cons);
+		int[] nPushed = new int[knowledgeBase.getNumberOfRules()]; //remembers the number of antecedents pushed by each rule
+		
+		while(!stack.isEmpty())
+		{
+			//search the rules to find the rules that contain the consequent at the top of the stack
+			Rule[] containingRules = findContainingRules(stack.peek());
+
+// an attempt to sort the antecedent array in terms of number of antecedents. seemed to work (properly re-ordered array, but an exception was thrown at ~290 (pop)			
+//			System.out.println("the containing rules\n" + Arrays.toString(containingRules));
+//			Arrays.sort(containingRules, new RuleAntecedentComparator());
+//			System.out.println("Should now be different:\n" + Arrays.toString(containingRules));
+			
+			
+			loops:
+			if(containingRules.length > 0)
+			{
+				//see if the rules can be evaluated. Ask user when required
+				// added the stack empty check
+				for(int i = 0; i < containingRules.length && !stack.empty(); i++)
+				{
+					Rule rule = containingRules[i];
+					
+					//are its antecedents defined?
+					int  antDef = 0,antFalse = 0;
+					
+					//check that this rule can possible be evaluated given the current variables. If it cannot then do not query about the other variables
+					for(int k = 0; k < rule.getNumberOfAntecedents(); k++)
+					{
+						if(rule.getAntecedent(k).getVariable().hasValue() && rule.getAntecedent(k).evaluate() == false)
+						{
+							antFalse++;
+						}
+					}
+					
+					//if the rule can possibly be evaluated with more data
+					if((rule.getConnective() == Connectives.OR && rule.getNumberOfAntecedents() < antFalse) || (rule.getConnective() == Connectives.AND && antFalse == 0))
+					{
+					
+						for(int j = 0; j < rule.getNumberOfAntecedents(); j++)
+						{
+							Variable varj = rule.getAntecedent(j).getVariable();
+							//if the variable has not been defined
+							if(!varj.hasValue())
+							{
+								
+								//if the variable is flagged as a user input
+								if(varj.isUserInput())
+								{
+									//query the user and set the current value
+									//rule.getAntecedent(j).getVariable().userSetCurrentValue(queryUser(rule.getAntecedent(j).getVariable()));
+									//rule.getAntecedent(j).getVariable().userSetCurrentValue(StuartIO.getValue("Input a value for "+rule.getAntecedent(j).getVariable(), rule.getAntecedent(j).getVariable().getArrayOfPossibleValues()));
+									varj = StuartIO.userSetVaraible(varj);
+									antDef++;
+								}
+								else
+								{
+									//else convert the antecedent to a desired consequent and push to the stack and exit the loop
+									stack.push(rule.getAntecedent(i).convertToConsequent());
+									//nPushed[rule.getRuleNum()]++;
+									break loops;
+
+								}
+							}		
+							else
+							{
+								antDef++;
+							}
+							
+						}
+					}
+					else //if the rule cannot be evaluated then remove the consequent from the stack
+					{
+						stack.pop();
+						break loops;
+					}
+					
+					//fire the rule if its antecedents are all defined and evaluate to true
+					if(antDef == rule.getNumberOfAntecedents() && rule.evaluate())
+					{
+						//System.out.println("firing rule "+rule.toString());
+						rule.fire();
+						//remove the consequent that was just fired from the stack
+						//TODO this line is causing havoc, throwing an empty stack exception in cases where there are multiple similar consequents
+						// fixed by updating the for loop exit argument
+						stack.pop();
+					}
+				}
+			}
+			else
+			{
+				//if no rules contain the consequent then remove it from the stack
+				stack.pop();
+			}
+			
+		}
+		
+		
+		return cons.getVariable();
+	}
+	
+	
+	// this method searches the knowledge base to find rules that contain the given consequent
+	private Rule[] findContainingRules(Consequent cons)
+	{
+		ArrayList<Rule> rules = new ArrayList<Rule>();
+		
+		//perform a linear search through the rule list
+		for(int i = 0; i < knowledgeBase.getNumberOfRules(); i++)
+		{
+			for(int j = 0; j < knowledgeBase.getRule(i).getNumberOfConsequents(); j++)
+			{
+				if(cons.equals(knowledgeBase.getRule(i).getConsequent(j)))
+				{
+					rules.add(knowledgeBase.getRule(i));
+				}
+			}
+		}
+		
+		return rules.toArray(new Rule[rules.size()]);
+	}
+	
+	
+	@Deprecated
+	public Value queryUser(Variable ver)
+	{
+		System.out.println("Select Value for '"+ver.getName() + "' out of "+ver.getValuesString());
+		int index = -1;
+		
+		
+			try
+			{
+				Scanner s = new Scanner(StuartIO.getString("Select Value for '"+ver.getName() + "' out of "+ver.getValuesString()));
+				index = s.nextInt();
+			}
+			catch(InputMismatchException e)
+			{
+				System.err.println("User input did not match integer format requirements.");
+				//System.exit(0);
+			}
+			catch(Exception e)
+			{
+				System.err.println("User cooked the STUART. Well done.");
+			}
+		
+
+
+		
+
+		//do some checking on the users input
+		if(index > (ver.getNumberOfPossibleValues() - 1) || index < 0)
+		{
+			System.err.println("User input an index that is out of bounds. Terminating S.T.U.A.R.T");
+			System.exit(0);
+		}
+		
+		
+		return ver.getPossibleValue(index);
+	}
+
+@Deprecated
+	public Double queryUserCertainty()
+	{
+		System.out.println("Input a certainty value between -1 and 1");
+		Scanner s = new Scanner(System.in);
+		Double cert = s.nextDouble();
+		
+		if(cert >= -1 && cert <= 1)
+		{
+			return (cert+1)/2;
+		}
+		else
+		{
+			System.err.println("User input a number that is out of bounds. Terminating S.T.U.A.R.T");
+			System.exit(0);
+		}
+				
+		return -1.0;
+	}
+}

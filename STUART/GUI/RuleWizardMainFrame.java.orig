@@ -1,0 +1,241 @@
+package STUART.GUI;
+
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowEvent;
+
+import javax.swing.*;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import javax.swing.plaf.basic.BasicTabbedPaneUI.TabbedPaneLayout;
+
+import STUART.KnowledgeBaseFileManager;
+import STUART.Main;
+import STUART.StuartIO;
+import STUART.StuartInferenceEngine;
+import STUART.ADT.KnowledgeBase;
+import STUART.ADT.UncertaintyMethod;
+import STUART.ADT.Variable;
+
+
+public class RuleWizardMainFrame extends JFrame implements ActionListener, ChangeListener
+{
+	JMenuBar menuBar;
+	JMenu file,run;
+	JMenuItem menuNew;
+	JMenuItem menuOpen;
+	JMenuItem menuSave;
+	JMenuItem menuSummary;
+	JMenuItem menuRun;
+	JMenuItem menuExit;
+	
+	JMenuItem runFowardChaining,runBackChaining,runForwardCertainty, runForwardBayesian;
+	KnowledgeBase knowledgeBase;
+	ConsolePanel console;
+	JSplitPane splitPane;
+	
+	RuleWizardRulePanel rulePanel;
+	RuleWizardVariablePanel varPanel;
+	RuleWizardKnowledgePanel knowPanel;
+	
+	//creates the main frame with a default knowledge base
+	public RuleWizardMainFrame()
+	{
+			super("S.T.U.A.R.T. Rule Wizard");
+			StuartIO.setMainFrame(this);
+			
+			//create the default knowledge base
+			knowledgeBase = Main.createBoatKnowlegeBase();
+			this.setTitle("S.T.U.A.R.T. Rule Wizard - "+knowledgeBase.getName());
+
+			this.setSize(900,700);
+			this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+			
+			createMenuBar();
+
+			knowPanel = new RuleWizardKnowledgePanel(knowledgeBase);
+			rulePanel = new RuleWizardRulePanel(knowledgeBase);
+			varPanel = new RuleWizardVariablePanel(knowledgeBase);
+			
+			JTabbedPane tabbedPane = new JTabbedPane();
+			tabbedPane.addTab("KnowledgeBase", knowPanel);
+			tabbedPane.addTab("Rules", rulePanel);
+			tabbedPane.addTab("Variables", varPanel);
+			tabbedPane.addChangeListener(this);
+			tabbedPane.setSelectedComponent(rulePanel);
+			//this.add(tabbedPane);
+			
+			
+			ConsolePanel console = new ConsolePanel();
+			
+			splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, tabbedPane, console);
+			this.add(splitPane);
+			splitPane.setContinuousLayout(true);
+			splitPane.setDividerLocation(400);
+			this.setVisible(true);
+			
+	}
+	
+	public void createMenuBar()
+	{
+		menuBar = new JMenuBar();
+		
+		file = new JMenu("File");
+		menuNew = new JMenuItem("New Knowlege Base");
+		menuOpen = new JMenuItem("Open Knowlege Base");
+		menuSave = new JMenuItem("Save Knowlege Base");
+		menuSummary = new JMenuItem("View Summary");
+		menuRun = new JMenuItem("Run Knowlege Base");
+		menuExit = new JMenuItem("Exit");
+		
+		file.add(menuNew);
+		menuNew.addActionListener(this);
+		file.add(menuOpen);
+		menuOpen.addActionListener(this);
+		file.add(menuSave);
+		menuSave.addActionListener(this);
+		file.addSeparator();
+		
+		file.add(menuSummary);
+		menuSummary.addActionListener(this);
+		//file.add(menuRun);
+		menuRun.addActionListener(this);
+		file.addSeparator();
+		
+		file.add(menuExit);
+		menuExit.addActionListener(this);
+		
+		run = new JMenu("Run");
+		runFowardChaining = new JMenuItem("Run Forward Chaining");
+		runFowardChaining.addActionListener(this);
+		run.add(runFowardChaining);
+
+		runBackChaining = new JMenuItem("Run Backward Chaining");
+		runBackChaining.addActionListener(this);
+		run.add(runBackChaining);		
+		
+		menuBar.add(file);	
+		menuBar.add(run);
+		
+		this.setJMenuBar(menuBar);
+	}
+
+	@Override
+	public void actionPerformed(ActionEvent e)
+	{
+		
+		if(e.getSource() == menuNew)
+		{
+			//click handler for menu>new
+			//System.out.println("click event registered for menu>new");
+			knowledgeBase = new KnowledgeBase("Default");
+			
+			rulePanel.setKnowledgeBase(knowledgeBase);
+        	varPanel.setKnowledgeBase(knowledgeBase);
+        	knowPanel.setKnowledgeBase(knowledgeBase);
+        	
+//        	tabbedPane.setSelectedComponent(rulePanel);
+		}
+		if(e.getSource() == menuOpen)
+		{
+			//click handler for menu>open
+			//System.out.println("click event registered for menu>open");
+            KnowledgeBase know = KnowledgeBaseFileManager.loadKnowledgeFile(this);
+            
+            if(know != null)
+            {
+            	knowledgeBase = know;
+            	rulePanel.setKnowledgeBase(knowledgeBase);
+            	varPanel.setKnowledgeBase(knowledgeBase);
+            	knowPanel.setKnowledgeBase(knowledgeBase);
+            }
+
+		}
+		if(e.getSource() == menuSave)
+		{
+			//click handler for menu>save
+			//System.out.println("click event registered for menu>save");
+			
+			knowledgeBase.validate();
+
+			KnowledgeBaseFileManager.saveKnowledgeFile(knowledgeBase,this);
+		}
+		if(e.getSource() == menuSummary)
+		{
+			//click handler for menu>summary
+			//System.out.println("click event registered for menu>summary");
+			System.out.println(knowledgeBase);
+		}
+		if(e.getSource() == menuRun)
+		{
+			//click handler for menu>run
+			//System.out.println("click event registered for menu>run");
+			
+			
+		}
+		if(e.getSource() == menuExit)
+		{
+			//click handler for menu>exit
+			System.out.println("click event registered for menu>quit");
+			this.dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING));
+			
+		}
+		if(e.getSource() == runFowardChaining)
+		{
+			System.out.println("Running Knowledge Base: "+knowledgeBase.getName());
+	
+			StuartInferenceEngine stu = new StuartInferenceEngine(knowledgeBase);		
+			Variable result = stu.solveForwardChaining();
+			
+			StuartIO.displayResults(result, stu.getHowList(), knowledgeBase);
+			
+
+		}
+		if(e.getSource() == runBackChaining)
+		{
+			//click handler for run>runBackChaining
+			//System.out.println("click event registered for run>runBackChaining");
+			StuartInferenceEngine stu = new StuartInferenceEngine(knowledgeBase);		
+			Variable result = stu.solveBackwardChaining();
+			
+			StuartIO.displayResults(result, stu.getHowList(), knowledgeBase);
+
+			
+		}
+		if(e.getSource() == runForwardCertainty)
+		{
+			//click handler for run>runForwardCertainty
+			//System.out.println("click event registered for run>runForwardCertainty");
+			StuartInferenceEngine stu = new StuartInferenceEngine(knowledgeBase);		
+			Variable result = stu.solveForwardChaining();
+			
+			System.out.println("Certainty values for "+result);
+			System.out.println("\n" + result.getCertaintyValuesString());
+
+		}
+		
+		if(e.getSource() == runForwardBayesian)
+		{
+			//click handler for run>runForwardCertainty
+			//System.out.println("click event registered for run>runForwardCertainty");
+			StuartInferenceEngine stu = new StuartInferenceEngine(knowledgeBase);		
+			Variable result = stu.solveForwardChaining();
+			
+			System.out.println("reached conclusion");
+			System.out.println("Belief values for "+result);
+			System.out.println("\n" + result.getBeliefValuesString());
+		}
+		
+		this.setTitle("S.T.U.A.R.T. Rule Wizard - "+knowledgeBase.getName());
+
+	}
+
+	public void stateChanged(ChangeEvent e)
+	{
+		varPanel.updatePanel();
+		knowPanel.updatePanel();
+		this.setTitle("S.T.U.A.R.T. Rule Wizard - "+knowledgeBase.getName());
+
+	}
+
+}

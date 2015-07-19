@@ -1,0 +1,223 @@
+package STUART.ADT;
+
+import java.io.Serializable;
+import java.util.ArrayList;
+
+public class Rule implements Serializable
+{
+	protected ArrayList<Antecedent> antecedents;
+	protected ArrayList<Consequent> consequents;
+	Connectives connective = Connectives.AND;
+	protected Boolean fired = false;
+	protected int priority = 1;
+	protected int ruleNum;
+	
+	public Rule()
+	{
+		antecedents = new ArrayList<Antecedent>();
+		consequents  = new ArrayList<Consequent>();
+	}
+	
+	public void addAntecedent(Antecedent ant)
+	{
+		antecedents.add(ant);
+	}
+	
+	public void addConsequent(Consequent cons)
+	{
+		consequents.add(cons);
+	}
+	
+	public void setConnective(Connectives con)
+	{
+		connective = con;
+	}
+	
+	public void setRuleNum(int num)
+	{
+		ruleNum = num;
+	}
+	
+	public int getRuleNum()
+	{
+		return ruleNum;
+	}
+	
+	public Antecedent getAntecedent(int i)
+	{
+		return antecedents.get(i);
+	}
+	
+	public Consequent getConsequent(int i)
+	{
+		return consequents.get(i);
+	}
+	
+	public Antecedent[] getAntecedentArray()
+	{
+		return antecedents.toArray(new Antecedent[antecedents.size()]);
+	}
+	
+	public Consequent[] getConsequentArray()
+	{
+		return consequents.toArray(new Consequent[consequents.size()]);
+	}
+	
+	public int getNumberOfAntecedents()
+	{
+		return antecedents.size();
+	}
+	
+	public int getNumberOfConsequents()
+	{
+		return consequents.size();
+	}
+	
+	public Connectives getConnective()
+	{
+		return connective;
+	}
+	
+	//Executes all the consequents in the rule
+	public void fire()
+	{
+		fired = true;
+		
+		for(int i = 0; i < consequents.size(); i++)
+		{
+			consequents.get(i).execute();
+			//set that the variable was set by this rule
+			consequents.get(i).getVariable().setDerivedFrom(this);
+		}	
+	}
+	
+	public Boolean hasFired()
+	{
+		return fired;
+	}
+	
+	public int getSpecificity()
+	{
+		if(antecedents.size() == 1)
+		{
+			return 1;
+		}
+		else if(connective == Connectives.AND)
+		{
+			return antecedents.size();
+		}
+		else //the case that the connective is an OR
+		{
+			return antecedents.size()*-1;
+		}
+	}
+	
+	//returns the result of evaluating all the antecedents in the rule
+	public Boolean evaluate()
+	{
+		// there must be at least a single antecedent to evaluate
+		Boolean result;
+		try
+		{
+			 result = antecedents.get(0).evaluate();
+		}
+		catch(IndexOutOfBoundsException e)
+		{
+			System.err.println("ERROR: Rule must have at least one antecedent to evaluate");
+			return false;
+		}
+		
+		
+		switch(connective)
+		{
+		case AND:
+			//In an AND connective rule all antecedents must be evaluated
+			for(int i = 1; i < antecedents.size(); i++)
+			{
+				 result = result && antecedents.get(i).evaluate();
+			}
+		break;
+		case OR:
+			//In an OR simply evaluate the antecedents until a false is found
+			result = true;
+			for(int i = 0; i < antecedents.size(); i++)
+			{
+				 if(antecedents.get(i).evaluate() == false)
+				 {
+					 result = false;
+					 break;
+				 }
+			}
+		break;
+		
+		}
+
+		return result;
+	}
+	
+	public void fireCertainty()
+	{
+		Double antecedentCertaintyProd = 1.0;
+		fired = true;
+		
+		if(connective == Connectives.AND)
+		{
+			//compute the product of all the antecedents
+			for(int i = 0; i < getNumberOfAntecedents(); i++)
+			{
+				Variable var = getAntecedent(i).getVariable();
+				Value val = getAntecedent(i).getValue();
+				
+				antecedentCertaintyProd *= var.getCertaintyFactor(val);
+			}
+			
+		}
+		else if (connective == Connectives.OR)
+		{
+			//compute the product of all the antecedents
+			for(int i = 0; i < getNumberOfAntecedents(); i++)
+			{
+				Variable var = getAntecedent(i).getVariable();
+				Value val = getAntecedent(i).getValue();
+				
+				antecedentCertaintyProd *= (1-var.getCertaintyFactor(val));
+			}
+		}
+		
+		//fire all the consequents with the certainty data
+		for(int i = 0; i < getNumberOfConsequents(); i++)
+		{
+			if(connective == Connectives.AND)
+			{
+				consequents.get(i).executeCertainty(antecedentCertaintyProd);
+			}
+			else if (connective == Connectives.OR)
+			{
+				consequents.get(i).executeCertainty(1 - antecedentCertaintyProd);
+
+			}
+		}
+		
+	}
+	
+	public String toString()
+	{
+		StringBuilder sb = new StringBuilder();
+		sb.append("IF ");
+		for(int i = 0; i < antecedents.size(); i++)
+		{
+			sb.append(antecedents.get(i).toString() + "\n");
+			
+			if(i < antecedents.size() - 1)
+			{
+				sb.append(connective.toString() + " ");
+			}
+		}
+		sb.append("THEN\n");
+		for(int i = 0; i < consequents.size(); i++)
+		{
+			sb.append(consequents.get(i).toString() + "\n");
+		}
+		return sb.toString();
+	}
+}
